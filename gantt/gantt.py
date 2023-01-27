@@ -253,350 +253,6 @@ def _flatten(l, ltypes=(list, tuple)):
     return ltype(l)
 
 ############################################################################
-class GroupOfResources(object):
-    """
-    Class for grouping resources
-    """
-    def __init__(self, name, fullname=None):
-        """
-        Init a group of resource resource
-
-        Keyword arguments:
-        name -- name given to the resource (id)
-        fullname -- long name given to the resource
-        """
-        __LOG__.debug('** GroupOfResources::__init__ {0}'.format({'name':name}))
-        self.name = name
-        self.vacations = []
-        if fullname is not None:
-            self.fullname = fullname
-        else:
-            self.fullname = name
-
-        self.resources = []
-
-        self.tasks = []
-        return
-
-    def add_resource(self, resource):
-        """
-        Add a resource to the group of resources
-
-        Keyword arguments:
-        resource -- Resource object
-        """
-        if resource not in self.resources:
-            self.resources.append(resource)
-            resource.add_group(self)
-        return
-
-
-    def add_vacations(self, dfrom, dto=None):
-        """
-        Add vacations to a resource begining at [dfrom] to [dto] (included). If
-        [dto] is not defined, vacation will be for [dfrom] day only
-
-        Keyword arguments:
-        dfrom -- datetime.date begining of vacation
-        dto -- datetime.date end of vacation of vacation
-        """
-        __LOG__.debug('** Resource::add_vacations {0}'.format({'name':self.name, 'dfrom':dfrom, 'dto':dto}))
-        if dto is None:
-            self.vacations.append((dfrom, dfrom))
-        else:
-            self.vacations.append((dfrom, dto))
-        return
-
-
-
-    def nb_elements(self):
-        """
-        Returns the number of resources
-        """
-        __LOG__.debug('** GroupOfResources::nb_elements ({0})'.format({'name':self.name}))
-        return len(self.resources)
-
-
-
-    def is_available(self, date):
-        """
-        Returns True if any resource is available at given date, False if not.
-        Availibility is taken from the global VACATIONS and resource's ones.
-
-        Keyword arguments:
-        date -- datetime.date day to look for
-        """
-        # Global VACATIONS
-        if date in VACATIONS:
-            __LOG__.debug('** GroupOfResources::is_available {0} : False (global vacation)'.format({'name':self.name, 'date':date}))
-            return False
-
-        # Group vacations
-        for h in self.vacations:
-            dfrom, dto = h
-            if date >= dfrom and date <= dto:
-                __LOG__.debug('** GroupOfResources::is_available {0} : False (group vacation)'.format({'name':self.name, 'date':date}))
-                return False
-
-        # Test if at least one resource is avalaible
-        for r in self.resources:
-            if r.is_available(date):
-                __LOG__.debug('** GroupOfResources::is_available {0} : True {1}'.format({'name':self.name, 'date':date}, r.name))
-                return True
-
-        __LOG__.debug('** GroupOfResources::is_available {0} : False'.format({'name':self.name, 'date':date}))
-        return False
-
-
-    def add_task(self, task):
-        """
-        Tell the resource that we have assigned a task
-
-        Keyword arguments:
-        task -- Task object
-        """
-        if task not in self.tasks:
-            self.tasks.append(task)
-        return
-
-
-    def search_for_task_conflicts(self, all_tasks = False):
-        """
-        Returns a dictionnary of all days (datetime.date) containing for each
-        overcharged day the list of task for this day.
-
-        It examines all resources member and group tasks.
-
-        Keyword arguments:
-        all_tasks -- if True return all tasks for all days, not just overcharged days
-        """
-        # Get for each resource
-        affected_days = {}
-        for r in self.resources:
-            ad = r.search_for_task_conflicts(all_tasks = True)
-            for d in ad:
-                try:
-                    affected_days[d].append(ad[d])
-                except KeyError:
-                    affected_days[d] = [ ad[d] ]
-
-        # inspect project
-        for t in self.tasks:
-            cday = t.start_date()
-            while cday <= t.end_date():
-                if cday.weekday() not in _not_worked_days():
-                    try:
-                        affected_days[cday].append(t.fullname)
-                    except KeyError:
-                        affected_days[cday] = [t.fullname]
-                  
-                cday += datetime.timedelta(days=1)
-
-
-        # compile everything
-        overcharged_days = {}
-        ke = list(affected_days.keys())
-        ke.sort()
-        for d in ke:
-            affected_days[d] = _flatten(affected_days[d])
-            if all_tasks:
-                overcharged_days[d] = affected_days[d]
-
-            elif len(affected_days[d]) > self.nb_elements():
-                overcharged_days[d] = affected_days[d]
-                __LOG__.warning('** GroupOfResources "{2}" has more than {3} tasks on day {0} / {1}'.format(d, affected_days[d], self.name, self.nb_elements()))
-                
-        return overcharged_days
-
-
-
-    def is_vacant(self, from_date, to_date):
-        """
-        Check if any resource from the group is unallocated between for a given timeframe.
-        Returns a list of available ressource name.
-        
-        Keyword arguments:
-        from_date -- first day
-        to_date --  last day
-        """
-        availables = []
-        for r in self.resources:
-            if len(r.is_vacant(from_date, to_date)) >0:
-                availables.append(r.name)
-                
-        return availables
-
-
-############################################################################
-
-class Resource(object):
-    """
-    Class for handling resources assigned to tasks
-    """
-    def __init__(self, name, fullname=None):
-        """
-        Init a resource
-
-        Keyword arguments:
-        name -- name given to the resource (id)
-        fullname -- long name given to the resource
-        """
-        __LOG__.debug('** Resource::__init__ {0}'.format({'name':name}))
-        self.name = name
-        if fullname is not None:
-            self.fullname = fullname
-        else:
-            self.fullname = name
-
-        self.vacations = []
-        self.member_of_groups = []
-
-        self.tasks = []
-        return
-
-    def add_vacations(self, dfrom, dto=None):
-        """
-        Add vacations to a resource begining at [dfrom] to [dto] (included). If
-        [dto] is not defined, vacation will be for [dfrom] day only
-
-        Keyword arguments:
-        dfrom -- datetime.date begining of vacation
-        dto -- datetime.date end of vacation of vacation
-        """
-        __LOG__.debug('** Resource::add_vacations {0}'.format({'name':self.name, 'dfrom':dfrom, 'dto':dto}))
-        if dto is None:
-            self.vacations.append((dfrom, dfrom))
-        else:
-            self.vacations.append((dfrom, dto))
-        return
-
-
-    def nb_elements(self):
-        """
-        Returns the number of resources, 1 here
-        """
-        __LOG__.debug('** Resource::nb_elements ({0})'.format({'name':self.name}))
-        return 1
-
-
-    def is_available(self, date):
-        """
-        Returns True if the resource is available at given date, False if not.
-        Availibility is taken from the global VACATIONS and resource's ones.
-
-        Keyword arguments:
-        date -- datetime.date day to look for
-        """
-        # global VACATIONS
-        if date in VACATIONS:
-            __LOG__.debug('** Resource::is_available {0} : False (global vacation)'.format({'name':self.name, 'date':date}))
-            return False
-        
-        # GroupOfResources vacation
-        for g in self.member_of_groups:
-            for h in g.vacations:
-                dfrom, dto = h
-                if date >= dfrom and date <= dto:
-                    __LOG__.debug('** Resource::is_available {0} : False (Group {1})'.format({'name':self.name, 'date':date}, g.name))
-                    return False
-        
-
-        # Resource vacation
-        for h in self.vacations:
-            dfrom, dto = h
-            if date >= dfrom and date <= dto:
-                __LOG__.debug('** Resource::is_available {0} : False'.format({'name':self.name, 'date':date}))
-                return False
-        __LOG__.debug('** Resource::is_available {0} : True'.format({'name':self.name, 'date':date}))
-        return True
-
-
-    def add_group(self, groupofresources):
-        """
-        Tell the resource it belongs to a GroupOfResources
-        
-        Keyword arguments:
-        groupofresources -- GroupOfResources
-        """
-        if groupofresources not in self.member_of_groups:
-            self.member_of_groups.append(groupofresources)
-        return
-
-
-    def add_task(self, task):
-        """
-        Tell the resource that we have assigned a task
-
-        Keyword arguments:
-        task -- Task object
-        """
-        if task not in self.tasks:
-            self.tasks.append(task)
-        return
-
-
-    def search_for_task_conflicts(self, all_tasks=False):
-        """
-        Returns a dictionnary of all days (datetime.date) containing for each
-        overcharged day the list of task for this day.
-
-        Keyword arguments:
-        all_tasks -- if True return all tasks for all days, not just overcharged days
-        """
-        affected_days = {}
-        for t in self.tasks:
-            cday = t.start_date()
-            while cday <= t.end_date():
-                if cday.weekday() not in _not_worked_days():
-                    try:
-                        affected_days[cday].append(t.fullname)
-                    except KeyError:
-                        affected_days[cday] = [t.fullname]
-                    
-                cday += datetime.timedelta(days=1)
-
-        # return all
-        if all_tasks:
-            return affected_days
-
-        # compile only overcharge
-        overcharged_days = {}
-        ke = list(affected_days.keys())
-        ke.sort()
-        for d in ke:
-            if len(affected_days[d]) > 1:
-                overcharged_days[d] = affected_days[d]
-                __LOG__.warning('** Resource "{2}" has more than one task on day {0} / {1}'.format(d, affected_days[d], self.name))
-                
-        return overcharged_days
-            
-
-
-    def is_vacant(self, from_date, to_date):
-        """
-        Check if the resource is unallocated between for a given timeframe.
-        Returns True if the resource is free, False otherwise
-        
-        Keyword arguments:
-        from_date -- first day
-        to_date --  last day
-        """
-        non_vacant_days = self.search_for_task_conflicts(all_tasks=True)
-        cday = from_date
-        while cday <= to_date:
-            if cday.weekday() not in _not_worked_days():
-                if not self.is_available(cday):
-                    __LOG__.debug('** Ressource "{0}" is not available on day {1} (vacation)'.format(self.name, cday))
-                    return []
-                if cday in non_vacant_days:
-                    __LOG__.debug('** Ressource "{0}" is not available on day {1} (other task : {2})'.format(self.name, cday, non_vacant_days[cday]))
-                    return []
-
-            cday += datetime.timedelta(days=1)
-        return [self.name]
-
-############################################################################
-
 
 class Task(object):
     """
@@ -662,12 +318,6 @@ class Task(object):
         self.drawn_y_coord = None
         self.cache_start_date = None
         self.cache_end_date = None
-
-        # tell each resource we have
-        # assigned a new task
-        if resources is not None:
-            for r in resources:
-                r.add_task(self)
 
         return
 
@@ -914,127 +564,29 @@ class Task(object):
         raise(ValueError)
         return None
 
-    def svg(self, prev_y=0, start=None, end=None, color=None, level=None, scale=DRAW_WITH_DAILY_SCALE, title_align_on_left=False):
-        """
-        Return SVG for drawing this task.
-
-        Keyword arguments:
-        prev_y -- int, line to start to draw
-        start -- datetime.date of first day to draw
-        end -- datetime.date of last day to draw
-        color -- string of color for drawing the project
-        level -- int, indentation level of the project, not used here
-        scale -- drawing scale (d: days, w: weeks, m: months, q: quaterly)
-        title_align_on_left -- boolean, align task title on left
-        """
+    def svg(self, prev_y=0, start=None, end=None, color=None, level=None):
         __LOG__.debug('** Task::svg ({0})'.format({'name':self.name, 'prev_y':prev_y, 'start':start, 'end':end, 'color':color, 'level':level}))
 
         if not self.display:
             __LOG__.debug('** Task::svg ({0}) display off'.format({'name':self.name}))
             return(None, 0)
 
-        add_modified_begin_mark = False
-        add_modified_end_mark = False
-
         if start is None:
-            start = self.start_date()
-
-        if self.start is not None and self.start_date() != self.start:
-            add_modified_begin_mark = True
+            start = 0
 
         if end is None:
-            end = self.end_date()
-
-        if self.stop is not None and self.end_date() != self.stop:
-            add_modified_end_mark = True
+            end = 9999
 
         # override project color if defined
         if self.color is not None:
             color = self.color
 
-        add_begin_mark = False
-        add_end_mark = False
-
         y = prev_y * 10
 
-
-        if scale == DRAW_WITH_DAILY_SCALE:
-            def _time_diff(e, s):
-                return (e - s).days
-            def _time_diff_d(e, s):
-                return _time_diff(e, s) + 1
-
-        elif scale == DRAW_WITH_WEEKLY_SCALE:
-            def _time_diff(end_date, start_date):
-                td = 0
-                guess = start_date
-                while guess.weekday() != 0:
-                    guess = guess + dateutil.relativedelta.relativedelta(days=-1)
-
-                while end_date.weekday() != 6:
-                    end_date = end_date + dateutil.relativedelta.relativedelta(days=+1)
-                    
-                while guess + dateutil.relativedelta.relativedelta(days=+6) < end_date:
-                    td += 1
-                    guess = guess + dateutil.relativedelta.relativedelta(weeks=+1)
-
-                return td 
-            def _time_diff_d(e, s):
-                return _time_diff(e, s) + 1
-
-        elif scale == DRAW_WITH_MONTHLY_SCALE:
-            def _time_diff(end_date, start_date):
-                return dateutil.relativedelta.relativedelta(end_date, start_date).months + dateutil.relativedelta.relativedelta(end_date, start_date).years*12
-            def _time_diff_d(e, s):
-                return _time_diff(e, s) + 1
-
-
-        elif scale == DRAW_WITH_QUATERLY_SCALE:
-            __LOG__.critical('DRAW_WITH_QUATERLY_SCALE not implemented yet')
-            sys.exit(1)
-
-
-
-        # cas 1 -s--S==E--e-
-        if self.start_date() >= start and self.end_date() <= end:
-            x = _time_diff(self.start_date(), start) * 10
-            d = _time_diff_d(self.end_date(), self.start_date()) * 10
-            self.drawn_x_begin_coord = x
-            self.drawn_x_end_coord = x+d
-        # cas 5 -s--e--S==E-
-        elif self.start_date() > end:
-            return (None, 0)
-        # cas 6 -S==E-s--e-
-        elif self.end_date() < start:
-            return (None, 0)
-        # cas 2 -S==s==E--e-
-        elif self.start_date() < start and self.end_date() <= end:
-            x = 0
-            d = _time_diff_d(self.end_date(), start) * 10
-            self.drawn_x_begin_coord = x
-            self.drawn_x_end_coord = x+d
-            add_begin_mark = True
-        # cas 3 -s--S==e==E-
-        elif self.start_date() >= start and  self.end_date() > end:
-            x = _time_diff(self.start_date(), start) * 10 
-            d = _time_diff_d(end, self.start_date()) * 10
-            self.drawn_x_begin_coord = x
-            self.drawn_x_end_coord = x+d
-            add_end_mark = True
-        # cas 4 -S==s==e==E-
-        elif self.start_date() < start and self.end_date() > end:
-            x = 0
-            d = _time_diff_d(end, start) * 10 
-            self.drawn_x_begin_coord = x
-            self.drawn_x_end_coord = x+d
-            add_end_mark = True
-            add_begin_mark = True
-        else:
-            return (None, 0)    
-
-
-        self.drawn_y_coord = y
+        x = self.start * 10
+        d = (self.duration) * 10
         
+        self.drawn_y_coord = y
 
         svg = svgwrite.container.Group(id=self.name.replace(' ', '_'))
         svg.add(svgwrite.shapes.Rect(
@@ -1054,70 +606,10 @@ class Task(object):
                 opacity=0.2,
                 ))
 
-        if add_modified_begin_mark:
-            svg.add(svgwrite.shapes.Rect(
-                    insert=((x+1)*mm, (y+1)*mm),
-                    size=(5*mm, 4*mm),
-                    fill="#0000FF",
-                    stroke=color,
-                    stroke_width=1,
-                    opacity=0.35,
-                    ))
-
-        if add_modified_end_mark:
-            svg.add(svgwrite.shapes.Rect(
-                    insert=((x+d-7+1)*mm, (y+1)*mm),
-                    size=(5*mm, 4*mm),
-                    fill="#0000FF",
-                    stroke=color,
-                    stroke_width=1,
-                    opacity=0.35,
-                    ))
-        
-
-        if add_begin_mark:
-            svg.add(svgwrite.shapes.Rect(
-                    insert=((x+1)*mm, (y+1)*mm),
-                    size=(5*mm, 8*mm),
-                    fill="#000000",
-                    stroke=color,
-                    stroke_width=1,
-                    opacity=0.2,
-                    ))
-        if add_end_mark:
-            svg.add(svgwrite.shapes.Rect(
-                    insert=((x+d-7+1)*mm, (y+1)*mm),
-                    size=(5*mm, 8*mm),
-                    fill="#000000",
-                    stroke=color,
-                    stroke_width=1,
-                    opacity=0.2,
-                    ))
-
-        if self.percent_done is not None and self.percent_done > 0:
-            # Bar shade
-            svg.add(svgwrite.shapes.Rect(
-                    insert=((x+1)*mm, (y+6)*mm),
-                    size=(((d-2)*self.percent_done/100)*mm, 3*mm),
-                    fill="#F08000",
-                    stroke=color,
-                    stroke_width=1,
-                    opacity=0.35,
-                ))
-
-        if not title_align_on_left:
-            tx = x+2
-        else:
-            tx = 5
-            
+        tx = x + 2
         svg.add(svgwrite.text.Text(self.fullname, insert=((tx)*mm, (y + 5)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=15))
 
-        if self.resources is not None:
-            t = " / ".join(["{0}".format(r.name) for r in self.resources])
-            svg.add(svgwrite.text.Text("{0}".format(t), insert=((x+2)*mm, (y + 8.5)*mm), fill='purple', stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=15-5))
-
-
-        return (svg, 1)
+        return (svg, 0)
 
 
     def svg_dependencies(self, prj):
@@ -1309,307 +801,6 @@ class Task(object):
 ############################################################################
 
 
-class Milestone(Task):
-    """
-    Class for manipulating Milestones
-    """
-    def __init__(self, name, start=None, depends_of=None, color=None, fullname=None, display=True):
-        """
-        Initialize milestone object. Two of start, stop or duration may be given.
-        This milestone can rely on other milestone and will be completed with resources.
-        If percent done is given, a progress bar will be included on the milestone.
-        If color is specified, it will be used for the milestone.
-
-        Keyword arguments:
-        name -- name of the milestone (id)
-        fullname -- long name given to the resource
-        start -- datetime.date, first day of the milestone, default None
-        depends_of -- list of Milestone which are parents of this one, default None
-        color -- string, html color, default None
-        display -- boolean, display this milestone, default True
-        """
-        __LOG__.debug('** Milestone::__init__ {0}'.format({'name':name, 'start':start, 'depends_of':depends_of}))
-        self.name = name
-        if fullname is not None:
-            self.fullname = fullname
-        else:
-            self.fullname = name
-
-        self.start = start
-        self.stop = start
-        self.duration = 0
-        if color is not None:
-            self.color = color
-        else:
-            self.color = '#FF3030'
-            
-        self.display = display
-        self.state = 'Milestone'
-
-        if type(depends_of) is type([]):
-            self.depends_of = depends_of
-        elif depends_of is not None:
-            self.depends_of = [depends_of]
-        else:
-            self.depends_of = None
-
-        self.drawn_x_begin_coord = None
-        self.drawn_x_end_coord = None
-        self.drawn_y_coord = None
-        self.cache_start_date = None
-        self.cache_end_date = None
-
-        return
-
-
-    def end_date(self):
-        """
-        Returns the last day of the milestone, either the one which was given at milestone
-        creation or the one calculated after checking dependencies
-        """
-        __LOG__.debug('** Milestone::end_date ({0})'.format(self.name))
-        #return self.start_date() - datetime.timedelta(days=1)
-        return self.start_date()
-
-
-    def svg(self, prev_y=0, start=None, end=None, color=None, level=None, scale=DRAW_WITH_DAILY_SCALE, title_align_on_left=False):
-        """
-        Return SVG for drawing this milestone.
-
-        Keyword arguments:
-        prev_y -- int, line to start to draw
-        start -- datetime.date of first day to draw
-        end -- datetime.date of last day to draw
-        color -- string of color for drawing the project
-        level -- int, indentation level of the project, not used here
-        scale -- drawing scale (d: days, w: weeks, m: months, q: quaterly)
-        title_align_on_left -- boolean, align milestone title on left
-        """
-        __LOG__.debug('** Milestone::svg ({0})'.format({'name':self.name, 'prev_y':prev_y, 'start':start, 'end':end, 'color':color, 'level':level}))
-
-        if not self.display:
-            __LOG__.debug('** Milestone::svg ({0}) display off'.format({'name':self.name}))
-            return(None, 0)
-
-        #add_modified_begin_mark = False
-        #add_modified_end_mark = False
-
-        if start is None:
-            start = self.start_date()
-
-        #if self.start_date() != self.start and self.start is not None:
-        #    add_modified_begin_mark = True
-
-        if end is None:
-            end = self.end_date()
-
-        #if self.end_date() != self.stop and self.stop is not None:
-        #    add_modified_end_mark = True
-
-        # override project color if defined
-        if self.color is not None:
-            color = self.color
-
-        #add_begin_mark = False
-        #add_end_mark = False
-
-        y = prev_y * 10
-
-
-        if scale == DRAW_WITH_DAILY_SCALE:
-            def _time_diff(e, s):
-                return (e - s).days
-            def _time_diff_d(e, s):
-                return _time_diff(e, s) + 1
-
-        elif scale == DRAW_WITH_WEEKLY_SCALE:
-            def _time_diff(end_date, start_date):
-                td = 0
-                guess = start_date
-                # find first day of the week
-                while guess.weekday() != 0:
-                    guess = guess + dateutil.relativedelta.relativedelta(days=-1)
-                # find last day of the week                
-                while end_date.weekday() != 6:
-                    end_date = end_date + dateutil.relativedelta.relativedelta(days=+1)
-                    
-                while guess <= end_date:
-                    td += 1
-                    guess = guess + dateutil.relativedelta.relativedelta(weeks=+1)
-
-                return td - 1
-            def _time_diff_d(e, s):
-                return _time_diff(e, s) + 1
-
-        elif scale == DRAW_WITH_MONTHLY_SCALE:
-            def _time_diff(end_date, start_date):
-                return dateutil.relativedelta.relativedelta(end_date, start_date).months + dateutil.relativedelta.relativedelta(end_date, start_date).years*12
-            def _time_diff_d(e, s):
-                return _time_diff(e, s) + 1
-
-
-        elif scale == DRAW_WITH_QUATERLY_SCALE:
-            __LOG__.critical('DRAW_WITH_QUATERLY_SCALE not implemented yet')
-            sys.exit(1)
-
-
-
-        # cas 1 -s--X--e-
-        if self.start_date() >= start and self.end_date() <= end:
-            x = _time_diff(self.start_date(), start) * 10
-            self.drawn_x_begin_coord = x
-            self.drawn_x_end_coord = x
-        else:
-            return (None, 0)    
-
-
-        self.drawn_y_coord = y
-        
-
-        #insert=((x+1)*mm, (y+1)*mm),
-        #size=((d-2)*mm, 8*mm),
-
-        svg = svgwrite.container.Group(id=self.name.replace(' ', '_'))
-        # 3.543307 is for conversion from mm to pt units !
-        svg.add(svgwrite.shapes.Polygon(
-                points=[
-                    ((x+5)*mm, (y+2)*mm),
-                    ((x+8)*mm, (y+5)*mm),
-                    ((x+5)*mm, (y+8)*mm),
-                    ((x+2)*mm, (y+5)*mm)
-                ],
-                fill=color,
-                stroke=color,
-                stroke_width=2,
-                opacity=0.85,
-                ))
-
-
-
-        if not title_align_on_left:
-            tx = x+2
-        else:
-            tx = 5
-            
-        svg.add(svgwrite.text.Text(self.fullname, insert=((tx)*mm, (y + 5)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=15))
-
-
-        return (svg, 2)
-
-
-    def svg_dependencies(self, prj):
-        """
-        Draws svg dependencies between milestone and project according to coordinates
-        cached when drawing milestones
-
-        Keyword arguments:
-        prj -- Project object to check against
-        """
-        __LOG__.debug('** Milestone::svg_dependencies ({0})'.format({'name':self.name, 'prj':prj}))
-        if self.depends_of is None:
-            return None
-        else:
-            svg = svgwrite.container.Group()
-            for t in self.depends_of:
-                if isinstance(t, Milestone):
-                    if not (t.drawn_x_end_coord is None or t.drawn_y_coord is None or self.drawn_x_begin_coord is None) and prj.is_in_project(t):
-                        # horizontal line
-                        svg.add(svgwrite.shapes.Line(
-                                start=((t.drawn_x_end_coord + 9)*mm, (t.drawn_y_coord + 5)*mm), 
-                                end=((self.drawn_x_begin_coord + 5)*mm, (t.drawn_y_coord + 5)*mm), 
-                                stroke='black',
-                                stroke_dasharray='5,3',
-                                ))
-                        
-                        marker = svgwrite.container.Marker(insert=(5,5), size=(10,10))
-                        marker.add(svgwrite.shapes.Circle((5, 5), r=5, fill='#000000', opacity=0.5, stroke_width=0))
-                        svg.add(marker)
-                        # vertical line
-                        eline = svgwrite.shapes.Line(
-                            start=((self.drawn_x_begin_coord + 5)*mm, (t.drawn_y_coord + 5)*mm), 
-                            end=((self.drawn_x_begin_coord+5)*mm, (self.drawn_y_coord)*mm), 
-                            stroke='black',
-                            stroke_dasharray='5,3',
-                            )
-                        eline['marker-end'] = marker.get_funciri()
-                        svg.add(eline)
-
-                elif isinstance(t, Task):                
-                    if not (t.drawn_x_end_coord is None or t.drawn_y_coord is None or self.drawn_x_begin_coord is None) and prj.is_in_project(t):
-                        # horizontal line
-                        svg.add(svgwrite.shapes.Line(
-                                start=((t.drawn_x_end_coord - 2)*mm, (t.drawn_y_coord + 5)*mm), 
-                                end=((self.drawn_x_begin_coord + 5)*mm, (t.drawn_y_coord + 5)*mm), 
-                                stroke='black',
-                                stroke_dasharray='5,3',
-                                ))
-    
-                        marker = svgwrite.container.Marker(insert=(5,5), size=(10,10))
-                        marker.add(svgwrite.shapes.Circle((5, 5), r=5, fill='#000000', opacity=0.5, stroke_width=0))
-                        svg.add(marker)
-                        # vertical line
-                        eline = svgwrite.shapes.Line(
-                            start=((self.drawn_x_begin_coord+5)*mm, (t.drawn_y_coord+5)*mm), 
-                            end=((self.drawn_x_begin_coord+5)*mm, (self.drawn_y_coord + 0)*mm), 
-                            stroke='black',
-                            stroke_dasharray='5,3',
-                            )
-                        eline['marker-end'] = marker.get_funciri()
-                        svg.add(eline)
-    
-        return svg
-
-
-
-
-    def get_resources(self):
-        """
-        Returns Resources used in the milestone
-        """
-        return []
-
-
-
-    def check_conflicts_between_task_and_resources_vacations(self):
-        """
-        Displays a warning for each conflict between milestones and vacation of
-        resources affected to the milestone
-
-        And returns a dictionnary for resource vacation conflicts
-        """
-        return []
-
-
-    def csv(self, csv=None):
-        """
-        Create CSV output from milestones
-
-        Keyword arguments:
-        csv -- None, dymmy object
-        """
-        if self.resources is not None:
-            resources = ', '.join([x.fullname for x in self.resources])
-        else:
-            resources = ''
-            
-        csv_text = '"{0}";"{1}";{2};{3};{4};"{5}";\r\n'.format(
-            self.state.replace('"', '\\"'),
-            self.fullname.replace('"', '\\"'),
-            self.start_date(),
-            self.end_date(),
-            self.duration,
-            resources.replace('"', '\\"')
-            )
-        return csv_text
-    
-
-
-
-##</Milestone>##############################################################
-
-############################################################################
-
-
 class Project(object):
     """
     Class for handling projects
@@ -1643,124 +834,19 @@ class Project(object):
         self.cache_nb_elements = None
         return
 
-    def _svg_calendar(self, maxx, maxy, start_date, today=None, scale=DRAW_WITH_DAILY_SCALE):
-        """
-        Draw calendar in svg, begining at start_date for maxx days, containing
-        maxy lines. If today is given, draw a blue line at date
-
-        Keyword arguments:
-        maxx -- number of days, weeks, months or quarters (depending on scale) to draw
-        maxy -- number of lines to draw
-        start_date -- datetime.date of the first day to draw
-        today -- datetime.date of day as today reference
-        scale -- drawing scale (d: days, w: weeks, m: months, q: quaterly)
-        """
+    def _draw_table(self, maxx, maxy):
         dwg = svgwrite.container.Group()
-
-        cal = {0:'Mo', 1:'Tu', 2:'We', 3:'Th', 4:'Fr', 5:'Sa', 6:'Su'}
     
         maxx += 1
+        indent = 10
 
         vlines = dwg.add(svgwrite.container.Group(id='vlines', stroke='lightgray'))
         for x in range(maxx):
-            vlines.add(svgwrite.shapes.Line(start=(x*cm, 2*cm), end=(x*cm, (maxy+2)*cm)))
-            if scale == DRAW_WITH_DAILY_SCALE:
-                jour = start_date + datetime.timedelta(days=x)
-            elif scale == DRAW_WITH_WEEKLY_SCALE:
-                jour = start_date +  dateutil.relativedelta.relativedelta(weeks=+x)
-            elif scale == DRAW_WITH_MONTHLY_SCALE:
-                jour = start_date +  dateutil.relativedelta.relativedelta(months=+x)
-            elif scale == DRAW_WITH_QUATERLY_SCALE:
-                # how many quarter do we need to draw ?
-                __LOG__.critical('DRAW_WITH_QUATERLY_SCALE not implemented yet')
-                sys.exit(1)
-                
-            if not today is None and today == jour:
-                vlines.add(svgwrite.shapes.Rect(
-                    insert=((x+0.4)*cm, 2*cm),
-                    size=(0.2*cm, (maxy)*cm),
-                    fill='#76e9ff',
-                    stroke='lightgray',
-                    stroke_width=0,
-                    opacity=0.8
-                    ))
-
-            if scale == DRAW_WITH_DAILY_SCALE:
-                # draw vacations
-                if (start_date + datetime.timedelta(days=x)).weekday() in _not_worked_days() or (start_date + datetime.timedelta(days=x)) in VACATIONS:
-                    vlines.add(svgwrite.shapes.Rect(
-                        insert=(x*cm, 2*cm),
-                        size=(1*cm, maxy*cm),
-                        fill='gray',
-                        stroke='lightgray',
-                        stroke_width=1,
-                        opacity=0.7,
-                        ))
-
-                # Current day
-                vlines.add(svgwrite.text.Text('{1} {0:02}'.format(jour.day, cal[jour.weekday()][0]),
-                                              insert=((x*10+1)*mm, 19*mm),
-                                              fill='black', stroke='black', stroke_width=0,
-                                              font_family=_font_attributes()['font_family'], font_size=15-3))
-                # Year
-                if jour.day == 1 and jour.month == 1:
-                    vlines.add(svgwrite.text.Text('{0}'.format(jour.year),
-                                                  insert=((x*10+1)*mm, 5*mm),
-                                                  fill='#400000', stroke='#400000', stroke_width=0,
-                                                  font_family=_font_attributes()['font_family'], font_size=15+5,
-                                                  font_weight="bold"))
-                # Month name
-                if jour.day == 1:
-                    vlines.add(svgwrite.text.Text('{0}'.format(jour.strftime("%B")),
-                                                  insert=((x*10+1)*mm, 10*mm),
-                                                  fill='#800000', stroke='#800000', stroke_width=0,
-                                                  font_family=_font_attributes()['font_family'], font_size=15+3,
-                                                  font_weight="bold"))
-                # Week number
-                if jour.weekday() == 0:
-                    vlines.add(svgwrite.text.Text('{0:02}'.format(jour.isocalendar()[1]),
-                                                  insert=((x*10+1)*mm, 15*mm),
-                                                  fill='black', stroke='black', stroke_width=0,
-                                                  font_family=_font_attributes()['font_family'],
-                                                  font_size=15+1,
-                                                  font_weight="bold"))
-
-            elif scale == DRAW_WITH_WEEKLY_SCALE:
-                # Year
-                if jour.isocalendar()[1] == 1 and jour.month == 1:
-                    vlines.add(svgwrite.text.Text('{0}'.format(jour.year),
-                                                  insert=((x*10+1)*mm, 5*mm),
-                                                  fill='#400000', stroke='#400000', stroke_width=0,
-                                                  font_family=_font_attributes()['font_family'], font_size=15+5, font_weight="bold"))
-                # Month name
-                if jour.day <= 7:
-                    vlines.add(svgwrite.text.Text('{0}'.format(jour.strftime("%B")),
-                                                  insert=((x*10+1)*mm, 10*mm),
-                                                  fill='#800000', stroke='#800000', stroke_width=0,
-                                                  font_family=_font_attributes()['font_family'], font_size=15+3, font_weight="bold"))
-                vlines.add(svgwrite.text.Text('{0:02}'.format(jour.isocalendar()[1]),
-                                              insert=((x*10+1)*mm, 15*mm),
-                                              fill='black', stroke='black', stroke_width=0,
-                                              font_family=_font_attributes()['font_family'], font_size=15+1, font_weight="bold"))
-
-            elif scale == DRAW_WITH_MONTHLY_SCALE:
-                # Month number
-                vlines.add(svgwrite.text.Text('{0}'.format(jour.strftime("%m")),
-                                              insert=((x*10+1)*mm, 19*mm),
-                                              fill='black', stroke='black', stroke_width=0,
-                                              font_family=_font_attributes()['font_family'], font_size=15-3))
-                # Year
-                if jour.month == 1:
-                    vlines.add(svgwrite.text.Text('{0}'.format(jour.year),
-                                                  insert=((x*10+1)*mm, 5*mm),
-                                                  fill='#400000', stroke='#400000', stroke_width=0,
-                                                  font_family=_font_attributes()['font_family'], font_size=15+5, font_weight="bold"))
-
-
-            elif scale == DRAW_WITH_QUATERLY_SCALE:
-                # how many quarter do we need to draw ?
-                __LOG__.critical('DRAW_WITH_QUATERLY_SCALE not implemented yet')
-                sys.exit(1)
+            vlines.add(svgwrite.shapes.Line(start=((indent + x) * cm, 2*cm), end=((indent + x) * cm, (maxy+2)*cm)))
+            vlines.add(svgwrite.text.Text(x,
+                                            insert=(((indent + x) * 10 + 1) * mm, 19*mm),
+                                            fill='black', stroke='black', stroke_width=0,
+                                            font_family=_font_attributes()['font_family'], font_size=8))
 
 
 
@@ -1779,19 +865,7 @@ class Project(object):
         return dwg
 
 
-    def make_svg_for_tasks(self, filename, today=None, start=None, end=None, scale=DRAW_WITH_DAILY_SCALE, title_align_on_left=False):
-        """
-        Draw gantt of tasks and output it to filename. If start or end are
-        given, use them as reference, otherwise use project first and last day
-
-        Keyword arguments:
-        filename -- string, filename to save to OR file object
-        today -- datetime.date of day marked as a reference
-        start -- datetime.date of first day to draw
-        end -- datetime.date of last day to draw
-        scale -- drawing scale (d: days, w: weeks, m: months, q: quaterly)
-        title_align_on_left -- boolean, align task title on left
-        """
+    def make_svg_for_tasks(self, filename, start=None, end=None):
         if len(self.tasks) == 0:
             __LOG__.warning('** Empty project : {0}'.format(self.name))
             return
@@ -1800,60 +874,21 @@ class Project(object):
         self._reset_coord()
 
         if start is None:
-            start_date = self.start_date()    
-        else:
-            start_date = start
-
+            start = 0
         if end is None:
-            end_date = self.end_date() 
-        else:
-            end_date = end
+            end = 9999
 
 
-        if start_date > end_date:
-            __LOG__.critical('start date {0} > end_date {1}'.format(start_date, end_date))
+        if start > end:
+            __LOG__.critical('start {0} > end {1}'.format(start, end))
             sys.exit(1)
 
         ldwg = svgwrite.container.Group()
-        psvg, pheight = self.svg(prev_y=2, start=start_date, end=end_date, color = self.color, scale=scale, title_align_on_left=title_align_on_left)
+        psvg, pheight = self.svg(prev_y=2, start=start, end=end, color = self.color)
         if psvg is not None:
             ldwg.add(psvg)
-            
-        dep = self.svg_dependencies(self)
-        if dep is not None:
-            ldwg.add(dep)
 
-        if scale == DRAW_WITH_DAILY_SCALE:
-            # how many dayss do we need to draw ?
-            maxx = (end_date - start_date).days
-        elif scale == DRAW_WITH_WEEKLY_SCALE:
-            # how many weeks do we need to draw ?
-            maxx = 0
-            guess = start_date
-
-            guess = start_date
-            while guess.weekday() != 0:
-                guess = guess + dateutil.relativedelta.relativedelta(days=-1)
-
-            while end_date.weekday() != 6:
-                end_date = end_date + dateutil.relativedelta.relativedelta(days=+1)
-            
-            while guess <= end_date:
-                maxx += 1
-                guess = guess + dateutil.relativedelta.relativedelta(weeks=+1)
-        elif scale == DRAW_WITH_MONTHLY_SCALE:
-            # how many months do we need to draw ?
-            if dateutil.relativedelta.relativedelta(end_date, start_date).days == 0:
-                maxx = dateutil.relativedelta.relativedelta(end_date, start_date).months + dateutil.relativedelta.relativedelta(end_date, start_date).years*12
-            else:
-                maxx = dateutil.relativedelta.relativedelta(end_date, start_date).months + dateutil.relativedelta.relativedelta(end_date, start_date).years*12 + 1
-        elif scale == DRAW_WITH_QUATERLY_SCALE:
-            # how many quarter do we need to draw ?
-            __LOG__.critical('DRAW_WITH_QUATERLY_SCALE not implemented yet')
-            sys.exit(1)
-            
-
-
+        maxx = end - start
 
         dwg = _my_svgwrite_drawing_wrapper(filename, debug=True)
         dwg.add(svgwrite.shapes.Rect(
@@ -1864,189 +899,10 @@ class Project(object):
                     opacity=1
                     ))
 
-        dwg.add(self._svg_calendar(maxx, pheight, start_date, today, scale))
+        dwg.add(self._draw_table(maxx, pheight))
         dwg.add(ldwg)
         dwg.save(width=(maxx+1)*cm, height=(pheight+3)*cm)
         return
-
-    def make_svg_for_resources(self, filename, today=None, start=None, end=None, resources=None, one_line_for_tasks=False, filter='', scale=DRAW_WITH_DAILY_SCALE):
-        """
-        Draw resources affectation and output it to filename. If start or end are
-        given, use them as reference, otherwise use project first and last day
-
-        And returns to a dictionnary of dictionnaries for vacation and task
-        conflicts for resources
-
-        Keyword arguments:
-        filename -- string, filename to save to OR file object
-        today -- datetime.date of day marked as a reference
-        start -- datetime.date of first day to draw
-        end -- datetime.date of last day to draw
-        resources -- list of Resource to check, default all
-        one_line_for_tasks -- use only one line to display all tasks ?
-        filter -- display only those tags
-        scale -- drawing scale (d: days, w: weeks, m: months, q: quaterly)
-        """
-
-        if scale != DRAW_WITH_DAILY_SCALE:
-            __LOG__.warning('** Will draw ressource graph at day scale, not {0} as requested'.format(scale))
-            scale = DRAW_WITH_DAILY_SCALE
-
-        if len(self.tasks) == 0:
-            __LOG__.warning('** Empty project : {0}'.format(self.name))
-            return
-
-        self._reset_coord()
-
-
-        if start is None:
-            start_date = self.start_date()    
-        else:
-            start_date = start
-
-        if end is None:
-            end_date = self.end_date() 
-        else:
-            end_date = end
-
-
-        if start_date > end_date:
-            __LOG__.critical('start date {0} > end_date {1}'.format(start_date, end_date))
-            sys.exit(1)
-
-
-        if resources is None:
-            resources = self.get_resources()
-
-        maxx = (end_date - start_date).days 
-        maxy = len(resources) * 2
-
-        if maxy == 0:
-            # No resources
-            return {}
-
-
-        # detect conflicts between resources and holidays
-        conflicts_vacations = []
-        for t in self.get_tasks():
-            conflicts_vacations.append(t.check_conflicts_between_task_and_resources_vacations())
-
-        conflicts_vacations = _flatten(conflicts_vacations)
-
-
-        ldwg = svgwrite.container.Group()
-
-        if not one_line_for_tasks:
-            ldwg.add(
-                svgwrite.shapes.Line(
-                    start=((0)*cm, (2)*cm), 
-                    end=((maxx+1)*cm, (2)*cm), 
-                    stroke='black',
-                    ))
-
-    
-        nline = 2
-        conflicts_tasks = []
-        conflict_display_line = 1
-        for r in resources:
-            # do stuff for each resource
-            if filter != '' and r.name not in filter:
-                continue
-
-            ress = svgwrite.container.Group()
-            ress.add(svgwrite.text.Text('{0}'.format(r.fullname), insert=(3*mm, (nline*10+7)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=15+3))
-            #ldwg.add(ress)
-
-
-            overcharged_days = r.search_for_task_conflicts()
-
-
-            conflict_display_line = nline
-            nline += 1
-
-            vac = svgwrite.container.Group()
-            conflicts = svgwrite.container.Group()
-            cday = start_date
-            while cday <= end_date:
-                # Vacations
-                if cday.weekday() not in _not_worked_days() and cday not in VACATIONS and not r.is_available(cday):
-                     vac.add(svgwrite.shapes.Rect(
-                            insert=(((cday - start_date).days * 10 + 1)*mm, ((conflict_display_line)*10+1)*mm),
-                            size=(4*mm, 8*mm),
-                            fill="#008000",
-                            stroke="#008000",
-                            stroke_width=1,
-                            opacity=0.65,
-                            ))
-
-                # Overcharge
-                if cday.weekday() not in _not_worked_days() and cday not in VACATIONS and cday in overcharged_days:
-                    conflicts.add(svgwrite.shapes.Rect(
-                        insert=(((cday - start_date).days * 10 + 1 + 4)*mm, ((conflict_display_line)*10+1)*mm),
-                        size=(4*mm, 8*mm),
-                        fill="#AA0000",
-                        stroke="#AA0000",
-                        stroke_width=1,
-                        opacity=0.65,
-                        ))
-                
-                cday += datetime.timedelta(days=1)
-
-
-            nb_tasks = 0
-            for t in self.get_tasks():
-                if t.get_resources() is not None and r in t.get_resources():
-                    psvg, void = t.svg(prev_y = nline, start=start_date, end=end_date, color=self.color, scale=scale)
-                    if psvg is not None:
-                        ldwg.add(psvg)
-                        nb_tasks +=1
-                        if not one_line_for_tasks:
-                            nline += 1
-
-            if nb_tasks == 0:
-                nline -= 1
-            elif nb_tasks > 0:
-                print(r.fullname, nb_tasks)
-                ldwg.add(ress)
-                ldwg.add(vac)
-                ldwg.add(conflicts)
-
-
-                if not one_line_for_tasks:
-                    ldwg.add(
-                        svgwrite.shapes.Line(
-                            start=((0)*cm, (nline)*cm), 
-                            end=((maxx+1)*cm, (nline)*cm), 
-                            stroke='black',
-                            ))
-                
-                # nline += 1
-                if one_line_for_tasks:
-                    nline += 1
-                    ldwg.add(
-                        svgwrite.shapes.Line(
-                        start=((0)*cm, (nline)*cm), 
-                        end=((maxx+1)*cm, (nline)*cm), 
-                        stroke='black',
-                        ))
-
-
-        dwg = _my_svgwrite_drawing_wrapper(filename, debug=True)
-        dwg.add(svgwrite.shapes.Rect(
-                    insert=(0*cm, 0*cm),
-                    size=((maxx+1)*cm, (nline+1)*cm),
-                    fill='white',
-                    stroke_width=0,
-                    opacity=1
-                    ))
-        dwg.add(self._svg_calendar(maxx, nline-2, start_date, today, scale))
-        dwg.add(ldwg)
-        dwg.save(width=(maxx+1)*cm, height=(nline+1)*cm)
-        return {
-            'conflicts_vacations': conflicts_vacations, 
-            'conflicts_tasks':conflicts_tasks
-            }
-
 
     def start_date(self):
         """
@@ -2077,7 +933,7 @@ class Project(object):
                 last = t.end_date()
         return last
 
-    def svg(self, prev_y=0, start=None, end=None, color=None, level=0, scale=DRAW_WITH_DAILY_SCALE, title_align_on_left=False):
+    def svg(self, prev_y=0, start=None, end=None, color=None, level=0):
         """
         Return (SVG code, number of lines drawn) for the project. Draws all
         tasks and add project name with a purple bar on the left side.
@@ -2092,51 +948,33 @@ class Project(object):
         title_align_on_left -- boolean, align task title on left
         """
         if start is None:
-            start = self.start_date()
+            start = 0
         if end is None:
-            end = self.end_date()
+            end = 9999
         if color is None or self.color is not None:
             color = self.color
 
-
-        cy = prev_y + 1*(self.name != "")
+        cy = prev_y + 1 * (level + 1)
 
         prj = svgwrite.container.Group()
 
         for t in self.tasks:
-            trepr, theight = t.svg(cy, start=start, end=end, color=color, level=level+1, scale=scale, title_align_on_left=title_align_on_left)
+            trepr, theight = t.svg(prev_y, start=start, end=end, color=color, level=level+1)
             if trepr is not None:
                 prj.add(trepr)
-                cy += theight
+                prev_y += theight
 
         fprj = svgwrite.container.Group()
         prj_bar = False
         if self.name != "":
-            # if ((self.start_date() >= start and self.end_date() <= end) 
-            #     or (self.start_date() >= start and (self.end_date() <= end or self.start_date() <= end))) or level == 1: 
-            if ((self.start_date() >= start and self.end_date() <= end) 
-                or ((self.end_date() >=start and self.start_date() <= end))) or level == 1: 
-                fprj.add(svgwrite.text.Text('{0}'.format(self.name), insert=((6*level+3)*mm, ((prev_y)*10+7)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=15+3))
-
-                fprj.add(svgwrite.shapes.Rect(
-                        insert=((6*level+0.8)*mm, (prev_y+0.5)*cm),
-                        size=(0.2*cm, ((cy-prev_y-1)+0.4)*cm),
-                        fill='purple',
-                        stroke='lightgray',
-                        stroke_width=0,
-                        opacity=0.5
-                        ))
-                prj_bar = True
-            else:
-                cy -= 1
+            fprj.add(svgwrite.text.Text('{0}'.format(self.name), insert=((6*level+3)*mm, ((prev_y)*10+7)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=15+3))
 
         # Do not display empty tasks
         if (cy - prev_y) == 0 or ((cy - prev_y) == 1 and prj_bar):
             return (None, 0)
 
         fprj.add(prj)
-
-        return (fprj, cy-prev_y)
+        return (fprj, 1)
 
 
     def svg_dependencies(self, prj):
