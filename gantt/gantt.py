@@ -84,36 +84,6 @@ __LOG__ = None
 
 ############################################################################
 
-DRAW_WITH_DAILY_SCALE = 'd'
-DRAW_WITH_WEEKLY_SCALE = 'w'
-DRAW_WITH_MONTHLY_SCALE = 'm'
-DRAW_WITH_QUATERLY_SCALE = 'q'
-
-############################################################################
-
-# Unworked days (0: Monday ... 6: Sunday)
-NOT_WORKED_DAYS = [5, 6]
-
-
-def define_not_worked_days(list_of_days):
-    """
-    Define specific days off
-
-    Keyword arguments:
-    list_of_days -- list of integer (0: Monday ... 6: Sunday) - default [5, 6]
-    """
-    global NOT_WORKED_DAYS
-    NOT_WORKED_DAYS = list_of_days
-    return
-
-
-def _not_worked_days():
-    """
-    Returns list of days off (0: Monday ... 6: Sunday)
-    """
-    global NOT_WORKED_DAYS
-    return NOT_WORKED_DAYS
-
 
 ############################################################################
 
@@ -161,47 +131,6 @@ def _font_attributes():
     """
     global FONT_ATTR
     return FONT_ATTR
-
-
-############################################################################
-
-
-# list of vacations as datetime (non worked days)
-VACATIONS = []
-
-
-############################################################################
-
-
-def add_vacations(start_date, end_date=None):
-    """
-    Add vacations to a resource begining at [start_date] to [end_date]
-    (included). If [end_date] is not defined, vacation will be for [start_date]
-    day only
-
-    Keyword arguments:
-    start_date -- datetime.date begining of vacation
-    end_date -- datetime.date end of vacation of vacation
-    """
-    __LOG__.debug('** add_vacations {0}'.format({'start_date':start_date, 'end_date':end_date}))
-
-    global VACATIONS
-    
-    if end_date is None:
-        if start_date not in VACATIONS:
-            VACATIONS.append(start_date)
-    else:
-        while start_date <= end_date:
-            if start_date not in VACATIONS:
-                VACATIONS.append(start_date)
-                
-            start_date += datetime.timedelta(days=1)
-
-    __LOG__.debug('** add_vacations {0}'.format({'start_date':start_date, 'end_date':end_date, 'vac':VACATIONS}))
-
-    return
-
-############################################################################
 
 def init_log_to_sysout(level=logging.INFO):
     """
@@ -311,7 +240,6 @@ class Task(object):
         else:
             self.depends_of = None
 
-        self.resources = resources
         self.percent_done = percent_done
         self.drawn_x_begin_coord = None
         self.drawn_x_end_coord = None
@@ -320,249 +248,6 @@ class Task(object):
         self.cache_end_date = None
 
         return
-
-
-    def add_depends(self, depends_of):
-        """
-        Adds dependency to a task
-
-        Keyword arguments:
-        depends_of -- list of Task which are parents of this one
-        """
-        if type(depends_of) is type([]):
-            if self.depends_of is None:
-                self.depends_of = depends_of
-            else:
-                for d in depends_of:
-                    self.depends_of.append(d)
-        else:
-            if self.depends_of is None:
-                self.depends_of = depends_of
-            else:
-                self.depends_of.append(depends_of)
-
-        return
-
-
-    def start_date(self):
-        """
-        Returns the first day of the task, either the one which was given at
-        task creation or the one calculated after checking dependencies
-        """
-        if self.cache_start_date is not None:
-            return self.cache_start_date
-
-        __LOG__.debug('** Task::start_date ({0})'.format(self.name))
-        if self.start is not None:
-            # start date setted, calculate begining
-            if self.depends_of is None:
-                # depends of nothing... start date is start
-                #__LOG__.debug('*** Do not depend of other task')
-                start = self.start
-                while start.weekday() in _not_worked_days() or start in VACATIONS:
-                    start = start + datetime.timedelta(days=1)
-
-                if start > self.start:
-                    __LOG__.warning('** Due to vacations, Task "{0}", will not start on date {1} but {2}'.format(self.fullname, self.start, start))
-
-                self.cache_start_date = start
-                return self.cache_start_date
-            else:
-                # depends of other task, start date could vary
-                #__LOG__.debug('*** Do depend of other tasks')
-                start = self.start
-                while start.weekday() in _not_worked_days() or start in VACATIONS:
-                    start = start + datetime.timedelta(days=1)
-
-                prev_task_end = start
-                for t in self.depends_of:
-                    if isinstance(t, Milestone):
-                        if t.end_date() >= prev_task_end:
-                            prev_task_end = t.end_date()
-                    elif isinstance(t, Task):
-                        if t.end_date() >= prev_task_end:
-                            prev_task_end = t.end_date() + datetime.timedelta(days=1)
-
-                while prev_task_end.weekday() in _not_worked_days() or prev_task_end in VACATIONS:
-                    prev_task_end = prev_task_end + datetime.timedelta(days=1)
-
-                if prev_task_end > self.start:
-                    __LOG__.warning('** Due to dependencies, Task "{0}", will not start on date {1} but {2}'.format(self.fullname, self.start, prev_task_end))
-
-                self.cache_start_date = prev_task_end
-                return self.cache_start_date
-
-        elif self.duration is None: # start and stop fixed
-            current_day = self.start
-            # check depends
-            if self.depends_of is not None:
-                prev_task_end = self.depends_of[0].end_date()
-                for t in self.depends_of:
-                    if isinstance(t, Milestone):
-                        if t.end_date() > prev_task_end:
-                            prev_task_end = t.end_date() - datetime.timedelta(days=1)
-                    elif isinstance(t, Task):
-                        if t.end_date() > prev_task_end:
-                            prev_task_end = t.end_date()
-                    # if t.end_date() > prev_task_end:
-                    #     #__LOG__.debug('*** latest one {0} which end on {1}'.format(t.name, t.end_date()))
-                    #     prev_task_end = t.end_date()
-                if prev_task_end > current_day:
-                    depend_start_date = prev_task_end
-                else:
-                    start = self.start
-                    while start.weekday() in _not_worked_days() or start in VACATIONS:
-                        start = start + datetime.timedelta(days=1)
-                    depend_start_date = start
-
-                    if depend_start_date > current_day:
-                        __LOG__.error('** Due to dependencies, Task "{0}", could not be finished on time (should start as last on {1} but will start on {2})'.format(self.fullname, current_day, depend_start_date))
-                    self.cache_start_date = depend_start_date           
-            else:
-                # should be first day of start...
-                self.cache_start_date = current_day            
-
-            return self.cache_start_date
-
-        elif self.duration is not None and self.depends_of is not None and self.stop is None :  # duration and dependencies fixed
-            prev_task_end = self.depends_of[0].end_date()
-            for t in self.depends_of:
-                if isinstance(t, Milestone):
-                    if t.end_date() > prev_task_end:
-                        prev_task_end = t.end_date() - datetime.timedelta(days=1)
-                elif isinstance(t, Task):
-                    if t.end_date() > prev_task_end:
-                        prev_task_end = t.end_date()
-                # if t.end_date() > prev_task_end:
-                #     __LOG__.debug('*** latest one {0} which end on {1}'.format(t.name, t.end_date()))
-                #     prev_task_end = t.end_date()
-
-            start = prev_task_end + datetime.timedelta(days=1)
-            
-            while start.weekday() in _not_worked_days() or start in VACATIONS:
-                start = start + datetime.timedelta(days=1)
-
-            # should be first day of start...
-            self.cache_start_date = start
-
-        elif self.start is None and self.stop is not None: # stop and duration fixed
-            # start date not setted, calculate from end_date + depends
-            current_day = self.stop
-            real_duration = 0
-            duration = self.duration 
-            while duration > 0:
-                if not (current_day.weekday() in _not_worked_days() or current_day in VACATIONS):
-                    real_duration = real_duration + 1
-                    duration -= 1
-                else:
-                    real_duration = real_duration + 1
-
-                current_day = self.stop - datetime.timedelta(days=real_duration)
-            current_day = self.stop - datetime.timedelta(days=real_duration - 1)
-
-            # check depends
-            if self.depends_of is not None:
-                prev_task_end = self.depends_of[0].end_date()
-                for t in self.depends_of:
-                    if isinstance(t, Milestone):
-                        if t.end_date() > prev_task_end:
-                            prev_task_end = t.end_date()
-                    elif isinstance(t, Task):
-                        if t.end_date() > prev_task_end:
-                            prev_task_end = t.end_date()
-                    # if t.end_date() > prev_task_end:
-                    #     __LOG__.debug('*** latest one {0} which end on {1}'.format(t.name, t.end_date()))
-                    #     prev_task_end = t.end_date()
-
-                if prev_task_end > current_day:
-                    start = prev_task_end + datetime.timedelta(days=1)
-                    #return prev_task_end
-                else:
-                    start = current_day
-
-                
-                while start.weekday() in _not_worked_days() or start in VACATIONS:
-                    start = start + datetime.timedelta(days=1)
-
-                depend_start_date = start
-
-                if depend_start_date > current_day:
-                    __LOG__.error('** Due to dependencies, Task "{0}", could not be finished on time (should start as last on {1} but will start on {2})'.format(self.fullname, current_day, depend_start_date))
-                    self.cache_start_date = depend_start_date           
-                else:
-                    # should be first day of start...
-                    self.cache_start_date = depend_start_date
-            else:
-                # should be first day of start...
-                self.cache_start_date = current_day            
-
-
-        if self.cache_start_date != self.start:
-            __LOG__.warning('** starting date for task "{0}" is changed from {1} to {2}'.format(self.fullname, self.start, self.cache_start_date))
-        return self.cache_start_date
-
-
-    def end_date(self):
-        """
-        Returns the last day of the task, either the one which was given at task
-        creation or the one calculated after checking dependencies
-        """
-        # Should take care of resources vacations ?
-        if self.cache_end_date is not None:
-            return self.cache_end_date
-
-        __LOG__.debug('** Task::end_date ({0})'.format(self.name))
-
-        if self.duration is None or self.start is None and self.stop is not None:
-            real_end = self.stop
-            # Take care of vacations
-            while real_end.weekday() in _not_worked_days() or real_end in VACATIONS:
-                real_end -= datetime.timedelta(days=1)
-
-            if real_end <= self.start_date():
-                current_day = self.start_date()
-                real_duration = 0
-                duration = self.duration   
-                while duration > 1 or (current_day.weekday() in _not_worked_days() or current_day in VACATIONS):
-                    if not (current_day.weekday() in _not_worked_days() or current_day in VACATIONS):
-                        real_duration = real_duration + 1
-                        duration -= 1
-                    else:
-                        real_duration = real_duration + 1
-        
-                    current_day = self.start_date() + datetime.timedelta(days=real_duration)
-        
-                self.cache_end_date = self.start_date() + datetime.timedelta(days=real_duration)
-                __LOG__.warning('** task "{0}" will not be finished on time : end_date is changed from {1} to {2}'.format(self.fullname, self.stop, self.cache_end_date))
-                return self.cache_end_date
-                    
-
-            self.cache_end_date = real_end
-            if real_end != self.stop:
-                __LOG__.warning('** task "{0}" will not be finished on time : end_date is changed from {1} to {2}'.format(self.fullname, self.stop, self.cache_end_date))
-
-
-                
-            return self.cache_end_date
-
-        if self.stop is None:
-            current_day = self.start_date()
-            real_duration = 0
-            duration = self.duration   
-            while duration > 1 or (current_day.weekday() in _not_worked_days() or current_day in VACATIONS):
-                if not (current_day.weekday() in _not_worked_days() or current_day in VACATIONS):
-                    real_duration = real_duration + 1
-                    duration -= 1
-                else:
-                    real_duration = real_duration + 1
-    
-                current_day = self.start_date() + datetime.timedelta(days=real_duration)
-    
-            self.cache_end_date = self.start_date() + datetime.timedelta(days=real_duration)
-            return self.cache_end_date
-
-        raise(ValueError)
-        return None
 
     def svg(self, prev_y=0, start=None, end=None, color=None, level=None):
         __LOG__.debug('** Task::svg ({0})'.format({'name':self.name, 'prev_y':prev_y, 'start':start, 'end':end, 'color':color, 'level':level}))
@@ -612,106 +297,6 @@ class Task(object):
         return (svg, 0)
 
 
-    def svg_dependencies(self, prj):
-        """
-        Draws svg dependencies between task and project according to coordinates
-        cached when drawing tasks
-
-        Keyword arguments:
-        prj -- Project object to check against
-        """
-        __LOG__.debug('** Task::svg_dependencies ({0})'.format({'name':self.name, 'prj':prj}))
-        if self.depends_of is None:
-            return None
-        else:
-            svg = svgwrite.container.Group()
-            for t in self.depends_of:
-                if isinstance(t, Milestone):
-                    if not (t.drawn_x_end_coord is None or t.drawn_y_coord is None or self.drawn_x_begin_coord is None) and prj.is_in_project(t):
-                        if t.drawn_x_end_coord < self.drawn_x_begin_coord:
-                            # horizontal line
-                            svg.add(svgwrite.shapes.Line(
-                                    start=((t.drawn_x_end_coord + 9)*mm, (t.drawn_y_coord + 5)*mm), 
-                                    end=((self.drawn_x_begin_coord)*mm, (t.drawn_y_coord + 5)*mm), 
-                                    stroke='black',
-                                    stroke_dasharray='5,3',
-                                    ))
-
-                            marker = svgwrite.container.Marker(insert=(5,5), size=(10,10))
-                            marker.add(svgwrite.shapes.Circle((5, 5), r=5, fill='#000000', opacity=0.5, stroke_width=0))
-                            svg.add(marker)
-                            # vertical line
-                            eline = svgwrite.shapes.Line(
-                                start=((self.drawn_x_begin_coord)*mm, (t.drawn_y_coord + 5)*mm), 
-                                end=((self.drawn_x_begin_coord)*mm, (self.drawn_y_coord + 5)*mm), 
-                                stroke='black',
-                                stroke_dasharray='5,3',
-                                )
-                            eline['marker-end'] = marker.get_funciri()
-                            svg.add(eline)
-
-                        else:
-                            # horizontal line
-                            svg.add(svgwrite.shapes.Line(
-                                    start=((t.drawn_x_end_coord + 9)*mm, (t.drawn_y_coord + 5)*mm), 
-                                    end=((self.drawn_x_begin_coord + 10)*mm, (t.drawn_y_coord + 5)*mm), 
-                                    stroke='black',
-                                    stroke_dasharray='5,3',
-                                    ))
-                            # vertical
-                            svg.add(svgwrite.shapes.Line(
-                                start=((self.drawn_x_begin_coord + 10)*mm, (t.drawn_y_coord + 5)*mm), 
-                                end=((self.drawn_x_begin_coord + 10)*mm, (t.drawn_y_coord + 15)*mm), 
-                                stroke='black',
-                                stroke_dasharray='5,3',
-                                ))
-                            # horizontal line
-                            svg.add(svgwrite.shapes.Line(
-                                    start=((self.drawn_x_begin_coord)*mm, (t.drawn_y_coord + 15)*mm), 
-                                    end=((self.drawn_x_begin_coord + 10)*mm, (t.drawn_y_coord + 15)*mm), 
-                                    stroke='black',
-                                    stroke_dasharray='5,3',
-                                    ))
-    
-                            marker = svgwrite.container.Marker(insert=(5,5), size=(10,10))
-                            marker.add(svgwrite.shapes.Circle((5, 5), r=5, fill='#000000', opacity=0.5, stroke_width=0))
-                            svg.add(marker)
-                            # vertical line
-                            eline = svgwrite.shapes.Line(
-                                start=((self.drawn_x_begin_coord)*mm, (t.drawn_y_coord + 15)*mm), 
-                                end=((self.drawn_x_begin_coord)*mm, (self.drawn_y_coord + 5)*mm), 
-                                stroke='black',
-                                stroke_dasharray='5,3',
-                                )
-                            eline['marker-end'] = marker.get_funciri()
-                            svg.add(eline)
-    
-                elif isinstance(t, Task):
-                    if not (t.drawn_x_end_coord is None or t.drawn_y_coord is None or self.drawn_x_begin_coord is None) and prj.is_in_project(t):
-                        # horizontal line
-                        svg.add(svgwrite.shapes.Line(
-                                start=((t.drawn_x_end_coord - 2)*mm, (t.drawn_y_coord + 5)*mm), 
-                                end=((self.drawn_x_begin_coord)*mm, (t.drawn_y_coord + 5)*mm), 
-                                stroke='black',
-                                stroke_dasharray='5,3',
-                                ))
-    
-                        marker = svgwrite.container.Marker(insert=(5,5), size=(10,10))
-                        marker.add(svgwrite.shapes.Circle((5, 5), r=5, fill='#000000', opacity=0.5, stroke_width=0))
-                        svg.add(marker)
-                        # vertical line
-                        eline = svgwrite.shapes.Line(
-                            start=((self.drawn_x_begin_coord)*mm, (t.drawn_y_coord + 5)*mm), 
-                            end=((self.drawn_x_begin_coord)*mm, (self.drawn_y_coord + 5)*mm), 
-                            stroke='black',
-                            stroke_dasharray='5,3',
-                            )
-                        eline['marker-end'] = marker.get_funciri()
-                        svg.add(eline)
-                    
-        return svg
-
-
     def nb_elements(self):
         """
         Returns the number of task, 1 here
@@ -745,35 +330,6 @@ class Task(object):
             return True
 
         return False
-
-
-    def get_resources(self):
-        """
-        Returns Resources used in the task
-        """
-        return self.resources
-
-
-
-    def check_conflicts_between_task_and_resources_vacations(self):
-        """
-        Displays a warning for each conflict between tasks and vacation of
-        resources affected to the task
-
-        And returns a dictionnary for resource vacation conflicts
-        """
-        conflicts = []
-        if self.get_resources() is None:
-            return conflicts
-        for r in self.get_resources():
-            cday = self.start_date()
-            while cday <= self.end_date():
-                if cday.weekday() not in _not_worked_days() and not r.is_available(cday):
-                    conflicts.append({'resource':r.name,'date':cday, 'task':self.name})
-                    __LOG__.warning('** Caution resource "{0}" is affected on task "{2}" during vacations on day {1}'.format(r.name, cday, self.fullname))
-                cday += datetime.timedelta(days=1)
-        return conflicts
-
 
     def csv(self, csv=None):
         """
@@ -904,35 +460,6 @@ class Project(object):
         dwg.save(width=(maxx+1)*cm, height=(pheight+3)*cm)
         return
 
-    def start_date(self):
-        """
-        Returns first day of the project
-        """
-        if len(self.tasks) == 0:
-            __LOG__.warning('** Empty project : {0}'.format(self.name))
-            return datetime.date(9999, 1, 1)
-        
-        first = self.tasks[0].start_date()
-        for t in self.tasks:
-            if t.start_date() < first:
-                first = t.start_date()
-        return first
-
-
-    def end_date(self):
-        """
-        Returns last day of the project
-        """
-        if len(self.tasks) == 0:
-            __LOG__.warning('** Empty project : {0}'.format(self.name))
-            return datetime.date(1970, 1, 1)
-
-        last = self.tasks[0].end_date()
-        for t in self.tasks:
-            if t.end_date() > last:
-                last = t.end_date()
-        return last
-
     def svg(self, prev_y=0, start=None, end=None, color=None, level=0):
         """
         Return (SVG code, number of lines drawn) for the project. Draws all
@@ -978,22 +505,6 @@ class Project(object):
         return (fprj, 1)
 
 
-    def svg_dependencies(self, prj):
-        """
-        Draws svg dependencies between tasks according to coordinates cached
-        when drawing tasks
-
-        Keyword arguments:
-        prj -- Project object to check against
-        """
-        svg = svgwrite.container.Group()
-        for t in self.tasks:
-            trepr = t.svg_dependencies(prj)
-            if trepr is not None:
-                svg.add(trepr)
-        return svg
-
-
     def nb_elements(self):
         """
         Returns the number of tasks included in the project or subproject
@@ -1028,24 +539,6 @@ class Project(object):
             if t.is_in_project(task):
                 return True
         return False
-
-
-    def get_resources(self):
-        """
-        Returns Resources used in the project
-        """
-        rlist = []
-        for t in self.tasks:
-            r = t.get_resources()
-            if r is not None:
-                rlist.append(r)
-
-        flist = []
-        for r in _flatten(rlist):
-            if r not in flist:
-                flist.append(r)
-        return flist
-
 
 
     def get_tasks(self):
