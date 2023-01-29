@@ -889,7 +889,7 @@ class Project(object):
             ldwg.add(psvg)
 
         maxx = end - start
-
+        pheight = pheight * 10
         dwg = _my_svgwrite_drawing_wrapper(filename, debug=True)
         dwg.add(svgwrite.shapes.Rect(
                     insert=(0*cm, 0*cm),
@@ -958,6 +958,7 @@ class Project(object):
 
         prj = svgwrite.container.Group()
 
+        print(self.name, prev_y, cy)
         for t in self.tasks:
             trepr, theight = t.svg(prev_y, start=start, end=end, color=color, level=level+1)
             if trepr is not None:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import regex as re
+import math
 import gantt
 
 import logging
@@ -17,8 +18,8 @@ for line in lines:
     if len(line) == 3:
         if line[1] == "[CCSD_PROFILE]":
             words = line[2].split('_')
-            if len(words) == 6:
-                if words[5] == 'START':
+            if len(words) > 3:
+                if words[len(words) - 1] == 'START':
                     worker_name = words[0] + '_' + words[1]
                     if worker_name not in worker_list:
                         worker_list.append(worker_name)
@@ -26,11 +27,17 @@ for line in lines:
                     idx = line[0].find(']')
                     time = line[0][1:idx]
 
-                    task_name = words[2] + '_' + words[3] + '_' + words[4]
+                    task_name = words[2]
+                    if len(words) > 5:
+                        task_name = task_name + '_' + words[3] + '_' + words[4]
+
                     items.append({'worker_name':worker_name, 'task_name':task_name, 'start':time, 'end':0})
-                if words[5] == 'END':
+                if words[len(words) - 1] == 'END':
                     worker_name = words[0] + '_' + words[1]
-                    task_name = words[2] + '_' + words[3] + '_' + words[4]
+                    task_name = words[2]
+                    if len(words) > 5:
+                        task_name = task_name + '_' + words[3] + '_' + words[4]
+                        
                     if worker_name not in worker_list:
                         worker_list.append(worker_name)
 
@@ -43,7 +50,6 @@ for line in lines:
                             break
 f.close()
 
-print(items)
 # Change font default
 gantt.define_font_attributes(fill='black', stroke='black', stroke_width=0, font_family="Verdana")
 
@@ -56,10 +62,19 @@ worker_object = []
 for worker in worker_list:
     p = gantt.Project(name=worker)
     worker_object.append({'name':worker, 'object':p})
-
+print(worker_list)
+p = gantt.Project(name='CCSD')
+# find Min term
+min = 0xFFFFFFFF
 for item in items:
-    start = (float(item['start']) - start_time) * 1000000
     duration = (float(item['end']) - float(item['start'])) * 1000000
+    if min > duration:
+        min = duration
+
+print("d", duration)
+for item in items:
+    start = ((float(item['start']) - start_time) * 1000000 / min)
+    duration = ((float(item['end']) - float(item['start'])) * 1000000 / min)
 
     task = gantt.Task(name=item['task_name'], start=(start + 10), duration=duration)
 
@@ -70,8 +85,7 @@ for item in items:
 
 
 
-p = gantt.Project(name='CCSD')
 for po in worker_object:
     p.add_task(po['object'])
 
-p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) * 2000000))
+p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / min * 2000000))
