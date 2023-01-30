@@ -7,11 +7,14 @@ import gantt
 import logging
 gantt.init_log_to_sysout(level=logging.CRITICAL)
 
+# Format 
+# [TIME] [CCSD_PROFILE] [WORKER_#_TASKNAME_START(or END)]
 worker_list=[]
 items = []
 f = open("sample.txt", 'r')
 lines = f.readlines()
 for line in lines:
+    line = re.sub('\[\s+', '[', line)
     print(line)
     line = line.split()
     print(line)
@@ -19,6 +22,7 @@ for line in lines:
         if line[1] == "[CCSD_PROFILE]":
             words = line[2].split('_')
             if len(words) > 3:
+                print(words)
                 if words[len(words) - 1] == 'START':
                     worker_name = words[0] + '_' + words[1]
                     if worker_name not in worker_list:
@@ -53,6 +57,7 @@ f.close()
 # Change font default
 gantt.define_font_attributes(fill='black', stroke='black', stroke_width=0, font_family="Verdana")
 
+print("len : ", len(items))
 start_time = float(items[0]['start'])
 end_time = float(items[len(items) - 1]['end'])
 print(start_time)
