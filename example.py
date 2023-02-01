@@ -49,7 +49,7 @@ for line in lines:
                     time = line[0][1:idx]
 
                     for item in items[::-1]:
-                        if item['worker_name'] == worker_name and item['task_name'] == task_name and item['end'] == 0:
+                        if item['task_name'] == task_name and item['end'] == 0:
                             item['end'] = time
                             break
 f.close()
@@ -76,7 +76,7 @@ for item in items:
     if min > duration:
         min = duration
 
-print("d", duration)
+print("d", min)
 for item in items:
     start = ((float(item['start']) - start_time) * 1000000 / min)
     duration = ((float(item['end']) - float(item['start'])) * 1000000 / min)
