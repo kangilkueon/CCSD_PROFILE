@@ -45,6 +45,7 @@ import svgwrite
 # 3.543307 is for conversion from mm to pt units !
 mm = 3.543307
 cm = 35.43307
+indent = 60
 
 
 # https://labix.org/python-dateutil
@@ -267,9 +268,8 @@ class Task(object):
             color = self.color
 
         y = prev_y * 10
-
-        x = self.start * 10
-        d = (self.duration) * 10
+        x = (self.start + indent) * 1
+        d = (self.duration) * 1
         
         self.drawn_y_coord = y
 
@@ -394,13 +394,12 @@ class Project(object):
         dwg = svgwrite.container.Group()
     
         maxx += 1
-        indent = 10
 
         vlines = dwg.add(svgwrite.container.Group(id='vlines', stroke='lightgray'))
         for x in range(maxx):
-            vlines.add(svgwrite.shapes.Line(start=((indent + x) * cm, 2*cm), end=((indent + x) * cm, (maxy+2)*cm)))
+            vlines.add(svgwrite.shapes.Line(start=((indent + x) * mm, 2*cm), end=((indent + x) * mm, (maxy+2)*cm)))
             vlines.add(svgwrite.text.Text(x,
-                                            insert=(((indent + x) * 10 + 1) * mm, 19*mm),
+                                            insert=(((indent + x) + 1) * mm, 19*mm),
                                             fill='black', stroke='black', stroke_width=0,
                                             font_family=_font_attributes()['font_family'], font_size=8))
 
@@ -457,7 +456,7 @@ class Project(object):
 
         dwg.add(self._draw_table(maxx, pheight))
         dwg.add(ldwg)
-        dwg.save(width=(maxx+1)*cm, height=(pheight+3)*cm)
+        dwg.save(width=(maxx+1)*mm, height=(pheight+3)*cm)
         return
 
     def svg(self, prev_y=0, start=None, end=None, color=None, level=0):
@@ -485,7 +484,7 @@ class Project(object):
 
         prj = svgwrite.container.Group()
 
-        print(self.name, prev_y, cy)
+        #print(self.name, prev_y, cy)
         for t in self.tasks:
             trepr, theight = t.svg(prev_y, start=start, end=end, color=color, level=level+1)
             if trepr is not None:

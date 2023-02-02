@@ -15,14 +15,14 @@ f = open("sample.txt", 'r')
 lines = f.readlines()
 for line in lines:
     line = re.sub('\[\s+', '[', line)
-    print(line)
+    #print(line)
     line = line.split()
-    print(line)
+    #print(line)
     if len(line) == 3:
         if line[1] == "[CCSD_PROFILE]":
             words = line[2].split('_')
             if len(words) > 3:
-                print(words)
+                #print(words)
                 if words[len(words) - 1] == 'START':
                     worker_name = words[0] + '_' + words[1]
                     if worker_name not in worker_list:
@@ -71,17 +71,21 @@ print(worker_list)
 p = gantt.Project(name='CCSD')
 # find Min term
 min = 0xFFFFFFFF
+max = 0
+
 for item in items:
     duration = (float(item['end']) - float(item['start'])) * 1000000
-    if min > duration:
+    if min > duration and duration > 0:
         min = duration
+    if max < duration:
+        max = duration
 
 print("d", min)
 for item in items:
     start = ((float(item['start']) - start_time) * 1000000 / min)
     duration = ((float(item['end']) - float(item['start'])) * 1000000 / min)
 
-    task = gantt.Task(name=item['task_name'], start=(start + 10), duration=duration)
+    task = gantt.Task(name=item['task_name'], start=start, duration=duration)
 
     for worker in worker_object:
         if worker['name'] == item['worker_name']:
@@ -93,4 +97,4 @@ for item in items:
 for po in worker_object:
     p.add_task(po['object'])
 
-p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / min * 2000000))
+p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / min * 1000000))
