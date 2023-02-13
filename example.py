@@ -7,8 +7,9 @@ import gantt
 import logging
 gantt.init_log_to_sysout(level=logging.CRITICAL)
 
+colors=["#FFFF90", "#90FFA6", "#90D3FF", "#D390FF", "#FF9090"]
 # Format 
-# [TIME] [CCSD_PROFILE] [WORKER_#_TASKNAME_START(or END)]
+# [TIME] [CCSD_PROFILE] [WORKER_#_TASKNAME(_#id_#subtaskID)_START(or END)]
 worker_list=[]
 items = []
 f = open("sample.txt", 'r')
@@ -32,11 +33,13 @@ for line in lines:
                     idx = line[0].find(']')
                     time = line[0][1:idx]
 
+                    task_id = 0
                     task_name = words[2]
                     if len(words) > 5:
                         task_name = task_name + '_' + words[3] + '_' + words[4]
+                        task_id = int(words[3]) + 1
 
-                    items.append({'task_type':task_type, 'worker_name':worker_name, 'task_name':task_name, 'start':time, 'end':0})
+                    items.append({'task_type':task_type, 'worker_name':worker_name, 'task_id':task_id, 'task_name':task_name, 'start':time, 'end':0})
                 if words[len(words) - 1] == 'END':
                     task_type = words[0]
                     worker_name = words[0] + '_' + words[1]
@@ -86,7 +89,7 @@ for item in items:
 for item in items:
     start = ((float(item['start']) - start_time) * 1000000 / min)
     duration = ((float(item['end']) - float(item['start'])) * 1000000 / min)
-    task = gantt.Task(name=item['task_name'], start=start, duration=duration)
+    task = gantt.Task(name=item['task_name'], start=start, duration=duration, color=colors[int(item['task_id']) % len(colors)])
 
     for worker in worker_object:
         if worker['name'] == item['worker_name']:
