@@ -3,6 +3,7 @@
 import regex as re
 import math
 import gantt
+import sys
 
 import logging
 gantt.init_log_to_sysout(level=logging.CRITICAL)
@@ -12,8 +13,13 @@ colors=["#FFFF90", "#90FFA6", "#90D3FF", "#D390FF", "#FF9090"]
 # [TIME] [CCSD_PROFILE] [WORKER_#_TASKNAME(_#id_#subtaskID)_START(or END)]
 worker_list=[]
 items = []
+flag = 1
+if len(sys.argv) > 1:
+    flag = sys.argv[1]
+
 f = open("sample.txt", 'r')
 lines = f.readlines()
+
 for line in lines:
     line = re.sub('\[\s+', '[', line)
     #print(line)
@@ -38,8 +44,8 @@ for line in lines:
                     if len(words) > 5:
                         task_name = task_name + '_' + words[3] + '_' + words[4]
                         task_id = int(words[3]) + 1
-
-                    items.append({'task_type':task_type, 'worker_name':worker_name, 'task_id':task_id, 'task_name':task_name, 'start':time, 'end':0})
+                    if ((int(flag) == 1) or (len(words) > 5)):
+                        items.append({'task_type':task_type, 'worker_name':worker_name, 'task_id':task_id, 'task_name':task_name, 'start':time, 'end':0})
                 if words[len(words) - 1] == 'END':
                     task_type = words[0]
                     worker_name = words[0] + '_' + words[1]
