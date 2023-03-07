@@ -40,7 +40,7 @@ for line in lines:
                     time = line[0][1:idx]
 
                     task_id = 0
-                    task_name = words[2]
+                    task_name = 'T' # words[2]
                     if len(words) > 5:
                         task_name = task_name + '_' + words[3] + '_' + words[4]
                         task_id = int(words[3]) + 1
@@ -49,7 +49,7 @@ for line in lines:
                 if words[len(words) - 1] == 'END':
                     task_type = words[0]
                     worker_name = words[0] + '_' + words[1]
-                    task_name = words[2]
+                    task_name = 'T' # words[2]
                     if len(words) > 5:
                         task_name = task_name + '_' + words[3] + '_' + words[4]
                         
@@ -105,4 +105,4 @@ for item in items:
 for po in worker_object:
     p.add_task(po['object'])
 
-p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / min * 1000000))
+p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / min * 1000000 * 1.2))

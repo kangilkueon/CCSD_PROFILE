@@ -43,10 +43,11 @@ import svgwrite
 # conversion from mm/cm to pixel is done by ourselve as firefox seems
 # to have a bug for big numbers...
 # 3.543307 is for conversion from mm to pt units !
-mm = 3.543307
-cm = 35.43307
-indent = 60
-
+scale = 1
+mm = 3.543307 / scale
+cm = 35.43307 / scale
+indent = 60 * scale
+text_size = 9
 
 # https://labix.org/python-dateutil
 import dateutil.relativedelta
@@ -292,7 +293,7 @@ class Task(object):
                 ))
 
         tx = x + 2
-        svg.add(svgwrite.text.Text(self.fullname, insert=((tx)*mm, (y + 5)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=15))
+        svg.add(svgwrite.text.Text(self.fullname, insert=((tx)*mm, (y + 5)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=text_size))
 
         return (svg, 0)
 
@@ -401,7 +402,7 @@ class Project(object):
             vlines.add(svgwrite.text.Text(x,
                                             insert=(((indent + x) + 1) * mm, 19*mm),
                                             fill='black', stroke='black', stroke_width=0,
-                                            font_family=_font_attributes()['font_family'], font_size=8))
+                                            font_family=_font_attributes()['font_family'], font_size=text_size))
 
 
 
@@ -494,7 +495,7 @@ class Project(object):
         fprj = svgwrite.container.Group()
         prj_bar = False
         if self.name != "":
-            fprj.add(svgwrite.text.Text('{0}'.format(self.name), insert=((6*level+3)*mm, ((prev_y)*10+7)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=15+3))
+            fprj.add(svgwrite.text.Text('{0}'.format(self.name), insert=((6*level+3)*mm, ((prev_y)*10+7)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=text_size+3))
 
         # Do not display empty tasks
         if (cy - prev_y) == 0 or ((cy - prev_y) == 1 and prj_bar):
