@@ -19,8 +19,9 @@ pip3 install svgwrite
 
 ## Example ##
 
+```
 python3 example.py
-
+```
 
 
 ## Licence ##
