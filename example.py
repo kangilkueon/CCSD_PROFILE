@@ -80,21 +80,11 @@ for worker in worker_list:
     worker_object.append({'name':worker, 'object':p})
 #print(worker_list)
 p = gantt.Project(name='CCSD')
-# find Min term
-min = 0xFFFFFFFF
-max = 0
-
-for item in items:
-    duration = (float(item['end']) - float(item['start'])) * 1000000
-    if min > duration and duration > 0:
-        min = duration
-    if max < duration:
-        max = duration
-
+time_scale = 100   # 1칸에 1ms
 #print("d", min)
 for item in items:
-    start = ((float(item['start']) - start_time) * 1000000 / min)
-    duration = ((float(item['end']) - float(item['start'])) * 1000000 / min)
+    start = ((float(item['start']) - start_time) * 1000000 / time_scale)
+    duration = ((float(item['end']) - float(item['start'])) * 1000000 / time_scale)
     task = gantt.Task(name=item['task_name'], start=start, duration=duration, color=colors[int(item['task_id']) % len(colors)])
 
     for worker in worker_object:
@@ -105,4 +95,4 @@ for item in items:
 for po in worker_object:
     p.add_task(po['object'])
 
-p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / min * 1000000 * 1.2))
+p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / time_scale * 1000000))

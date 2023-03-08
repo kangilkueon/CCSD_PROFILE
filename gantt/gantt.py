@@ -44,14 +44,11 @@ import svgwrite
 # to have a bug for big numbers...
 # 3.543307 is for conversion from mm to pt units !
 scale = 1
+table_width = 2
 mm = 3.543307 / scale
 cm = 35.43307 / scale
-indent = 60 * scale
+indent = 60 * scale / table_width
 text_size = 9
-
-# https://labix.org/python-dateutil
-import dateutil.relativedelta
-
 
 class _my_svgwrite_drawing_wrapper(svgwrite.Drawing):
     """
@@ -276,24 +273,16 @@ class Task(object):
 
         svg = svgwrite.container.Group(id=self.name.replace(' ', '_'))
         svg.add(svgwrite.shapes.Rect(
-                insert=((x+1)*mm, (y+1)*mm),
-                size=((d-2)*mm, 8*mm),
+                insert=((x+1)*mm * table_width, (y+1)*mm),
+                size=((d-1)*mm * table_width, 8*mm),
                 fill=color,
                 stroke=color,
                 stroke_width=2,
                 opacity=0.85,
                 ))
-        svg.add(svgwrite.shapes.Rect(
-                insert=((x+1)*mm, (y+6)*mm),
-                size=(((d-2))*mm, 3*mm),
-                fill="#909090",
-                stroke=color,
-                stroke_width=1,
-                opacity=0.2,
-                ))
 
         tx = x + 2
-        svg.add(svgwrite.text.Text(self.fullname, insert=((tx)*mm, (y + 5)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=text_size))
+        svg.add(svgwrite.text.Text(self.fullname, insert=((tx)*mm * table_width, (y + 5)*mm), fill=_font_attributes()['fill'], stroke=_font_attributes()['stroke'], stroke_width=_font_attributes()['stroke_width'], font_family=_font_attributes()['font_family'], font_size=text_size))
 
         return (svg, 0)
 
@@ -398,9 +387,10 @@ class Project(object):
 
         vlines = dwg.add(svgwrite.container.Group(id='vlines', stroke='lightgray'))
         for x in range(maxx):
-            vlines.add(svgwrite.shapes.Line(start=((indent + x) * mm, 2*cm), end=((indent + x) * mm, (maxy+2)*cm)))
-            vlines.add(svgwrite.text.Text(x,
-                                            insert=(((indent + x) + 1) * mm, 19*mm),
+            if (x % 10 == 0):   # Vertical line (1ms)
+                vlines.add(svgwrite.shapes.Line(start=((indent + x) * mm * table_width, 2*cm), end=((indent + x) * mm * table_width, (maxy+2)*cm)))
+                vlines.add(svgwrite.text.Text(x / 10,
+                                            insert=(((indent + x)) * mm * table_width, 19*mm),
                                             fill='black', stroke='black', stroke_width=0,
                                             font_family=_font_attributes()['font_family'], font_size=text_size))
 
@@ -444,12 +434,12 @@ class Project(object):
         if psvg is not None:
             ldwg.add(psvg)
 
-        maxx = end - start
+        maxx = int((end - start + indent * table_width) * table_width)
         pheight = pheight * 10
         dwg = _my_svgwrite_drawing_wrapper(filename, debug=True)
         dwg.add(svgwrite.shapes.Rect(
                     insert=(0*cm, 0*cm),
-                    size=((maxx+1)*cm, (pheight+3)*cm),
+                    size=(maxx * cm, (pheight+3)*cm),
                     fill='white',
                     stroke_width=0,
                     opacity=1
