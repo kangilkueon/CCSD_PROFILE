@@ -80,8 +80,20 @@ for worker in worker_list:
     worker_object.append({'name':worker, 'object':p})
 #print(worker_list)
 p = gantt.Project(name='CCSD')
-time_scale = 100   # 1칸에 1ms
+time_scale = 5   # 1칸에 1ms (100) , 1칸에 1us (0.1)
 #print("d", min)
+min = 0xffffffff
+for item in items:
+    if (item['task_type'] == 'SLM'):
+        duration = ((float(item['end']) - float(item['start'])) * 1000000)
+        if (min > duration):
+            min = duration
+
+if (min < 200):
+    time_scale = 5   # 1칸에 50us
+else:
+    time_scale = 100   # 1칸에 1ms
+
 for item in items:
     start = ((float(item['start']) - start_time) * 1000000 / time_scale)
     duration = ((float(item['end']) - float(item['start'])) * 1000000 / time_scale)
@@ -95,4 +107,4 @@ for item in items:
 for po in worker_object:
     p.add_task(po['object'])
 
-p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / time_scale * 1000000))
+p.make_svg_for_tasks(filename='test_full.svg', start=0, end=int((end_time - start_time) / time_scale * 1000000), scale=time_scale*10)

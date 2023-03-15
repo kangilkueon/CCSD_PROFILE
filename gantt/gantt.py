@@ -380,7 +380,7 @@ class Project(object):
         self.cache_nb_elements = None
         return
 
-    def _draw_table(self, maxx, maxy):
+    def _draw_table(self, maxx, maxy, scale):
         dwg = svgwrite.container.Group()
     
         maxx += 1
@@ -389,7 +389,7 @@ class Project(object):
         for x in range(maxx):
             if (x % 10 == 0):   # Vertical line (1ms)
                 vlines.add(svgwrite.shapes.Line(start=((indent + x) * mm * table_width, 2*cm), end=((indent + x) * mm * table_width, (maxy+2)*cm)))
-                vlines.add(svgwrite.text.Text(x / 10,
+                vlines.add(svgwrite.text.Text(scale * x / 10,
                                             insert=(((indent + x)) * mm * table_width, 19*mm),
                                             fill='black', stroke='black', stroke_width=0,
                                             font_family=_font_attributes()['font_family'], font_size=text_size))
@@ -411,7 +411,7 @@ class Project(object):
         return dwg
 
 
-    def make_svg_for_tasks(self, filename, start=None, end=None):
+    def make_svg_for_tasks(self, filename, start=None, end=None, scale=1):
         if len(self.tasks) == 0:
             __LOG__.warning('** Empty project : {0}'.format(self.name))
             return
@@ -445,7 +445,7 @@ class Project(object):
                     opacity=1
                     ))
 
-        dwg.add(self._draw_table(maxx, pheight))
+        dwg.add(self._draw_table(maxx, pheight, scale))
         dwg.add(ldwg)
         dwg.save(width=(maxx+1)*mm, height=(pheight+3)*cm)
         return
