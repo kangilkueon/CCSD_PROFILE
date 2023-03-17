@@ -81,7 +81,7 @@ for worker in worker_list:
 #print(worker_list)
 p = gantt.Project(name='CCSD')
 time_scale = 5   # 1칸에 1ms (100) , 1칸에 1us (0.1)
-#print("d", min)
+
 min = 0xffffffff
 for item in items:
     if (item['task_type'] == 'SLM'):
@@ -89,7 +89,7 @@ for item in items:
         if (min > duration):
             min = duration
 
-if (min < 200):
+if (min < 300):
     time_scale = 5   # 1칸에 50us
 else:
     time_scale = 100   # 1칸에 1ms
